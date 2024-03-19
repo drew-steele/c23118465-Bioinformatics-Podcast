@@ -1,0 +1,192 @@
+---
+title: "Singel Cell Clustering Podcast"
+author: "Drew"
+date: "2024-03-15"
+output: html_document
+---
+
+```{r}
+library(Seurat)
+library(patchwork)
+library(dplyr)
+```
+
+### Reading in the data 
+
+```{r}
+
+rawData <- Read10X(data.dir = "data/hg19/")
+
+dat <- CreateSeuratObject(counts = rawData, project = "pbmc3k-podcast", min.cells = 3, min.features = 200)
+
+dat
+
+```
+
+### Quality control 
+
+```{r}
+
+dat[["qc.mito"]] <- PercentageFeatureSet(dat, pattern = "^MT-")
+
+VlnPlot(dat, features = c("nFeature_RNA", "nCount_RNA", "qc.mito"), ncol = 3)
+
+plot1 <- FeatureScatter(dat, feature1 = "nCount_RNA", feature2 = "qc.mito")
+plot2 <- FeatureScatter(dat, feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
+plot1 + plot2
+
+```
+
+# References 
+
+Ilicic, T., Kim, J. K., Kolodziejczyk, A. A., Bagger, F. O., McCarthy, D. J., Marioni, J. C., & Teichmann, S. A. (2016). Classification of low quality cells from single-cell RNA-seq data. Genome Biology, 17(1). https://doi.org/10.1186/s13059-016-0888-1
+
+### Subsetting data
+
+```{r}
+
+dat <- subset(dat, subset = nFeature_RNA > 200 & nFeature_RNA < 2500 & qc.mito < 5)
+
+```
+
+### Data nomralisation 
+
+```{r}
+
+dat <- NormalizeData(dat, normalization.method = "LogNormalize", scale.factor = 10000)
+
+```
+
+# References 
+
+Chu, S. K., Zhao, S., Shyr, Y., & Liu, Q. (2022). Comprehensive evaluation of noise reduction methods for single-cell RNA sequencing data. Briefings in Bioinformatics, 23(2). https://doi.org/10.1093/bib/bbab565
+
+Hafemeister, C., & Satija, R. (2019). Normalization and variance stabilization of single-cell RNA-seq data using regularized negative binomial regression. Genome Biology, 20(1). https://doi.org/10.1186/s13059-019-1874-1
+
+### Feature selection 
+
+```{r}
+
+dat <- FindVariableFeatures(dat, selection.method = "vst", nfeatures = 2000)
+
+top10 <- head(VariableFeatures(dat), 10)
+
+plot1 <- VariableFeaturePlot(dat)
+plot2 <- LabelPoints(plot = plot1, points = top10, repel = TRUE)
+plot1 + plot2
+
+```
+
+### Scaling data 
+
+```{r}
+
+all.genes <- rownames(dat)
+dat <- ScaleData(dat, features = all.genes)
+
+```
+
+### Linear dimensional reduction - PCA
+
+```{r}
+
+dat <- RunPCA(dat, features = VariableFeatures(object = dat))
+print(dat[["pca"]], dims = 1:5, nfeatures = 5)
+
+```
+
+# Having a look at the most influential genes in our first two principle components
+
+```{r}
+
+VizDimLoadings(dat, dims = 1:2, reduction = "pca")
+
+```
+
+# Standard PCA plot 
+
+```{r}
+
+DimPlot(dat, reduction = "pca") + NoLegend()
+
+```
+
+# Heat maps  
+
+```{r}
+
+DimHeatmap(dat, dims = 1:10, cells = 500, balanced = TRUE)
+
+```
+
+# Elbow plot
+
+```{r}
+
+ElbowPlot(dat)
+
+```
+
+# References 
+
+Xiang, R., Wang, W., Yang, L., Wang, S., Xu, C., & Chen, X. (2021). A Comparison for Dimensionality Reduction Methods of Single-Cell RNA-seq Data. Frontiers in Genetics, 12. https://doi.org/10.3389/fgene.2021.646936
+
+### Cell clustering 
+
+```{r}
+
+dat <- FindNeighbors(dat, dims = 1:10)
+dat <- FindClusters(dat, resolution = 0.5)
+
+head(Idents(dat),10)
+
+```
+
+# References 
+
+Peng, L., Tian, X., Tian, G., Xu, J., Huang, X., Weng, Y., Yang, J., & Zhou, L. (2020). Single-cell RNA-seq clustering: datasets, models, and algorithms. In RNA Biology (Vol. 17, Issue 6, pp. 765–783). Taylor and Francis Inc. https://doi.org/10.1080/15476286.2020.1728961
+
+Petegrosso, R., Li, Z., & Kuang, R. (2019). Machine learning and statistical methods for clustering single-cell RNA-sequencing data. In Briefings in Bioinformatics (Vol. 21, Issue 4, pp. 1209–1223). Oxford University Press. https://doi.org/10.1093/bib/bbz063
+
+Seth, S., Mallik, S., Bhadra, T., & Zhao, Z. (2022). Dimensionality Reduction and Louvain Agglomerative Hierarchical Clustering for Cluster-Specified Frequent Biomarker Discovery in Single-Cell Sequencing Data. Frontiers in Genetics, 13. https://doi.org/10.3389/fgene.2022.828479
+
+Yu, L., Cao, Y., Yang, J. Y. H., & Yang, P. (2022). Benchmarking clustering algorithms on estimating the number of cell types from single-cell RNA-sequencing data. Genome Biology, 23(1). https://doi.org/10.1186/s13059-022-02622-0
+
+### UMAP projection 
+
+```{r}
+
+dat <- RunUMAP(dat, dims = 1:10)
+DimPlot(dat, reduction = "umap")
+
+```
+
+
+### Additional resources 
+
+Haque, A., Engel, J., Teichmann, S. A., & Lönnberg, T. (2017). A practical guide to single-cell RNA-sequencing for biomedical research and clinical applications. In Genome Medicine (Vol. 9, Issue 1). BioMed Central Ltd. https://doi.org/10.1186/s13073-017-0467-4
+
+Zhang, S., Li, X., Lin, J., Lin, Q., & Wong, K.-C. (2023). Review of single-cell RNA-seq data clustering for cell-type identification and characterization. https://doi.org/10.1261/rna
+
+Amezquita, R., Lun, A., Hicks, S., Gottardo, R., Hickey, P. Basics of Single-Cell Analysis with Bioconductor. https://bioconductor.org/books/3.17/OSCA.basic/index.html
+
+Amezquita, R., Lun, A., Hicks, S., Gottardo, R., Geistlinger, L,. Hickey, P. Advanced Single-Cell Analysis with Bioconductor. https://bioconductor.org/books/3.17/OSCA.advanced/index.html
+
+
+
+
+
+### Other links 
+
+Seurat - https://satijalab.org/seurat/
+
+Data set link and code reference - https://satijalab.org/seurat/articles/pbmc3k_tutorial
+
+
+
+
+
+
+
+
+
